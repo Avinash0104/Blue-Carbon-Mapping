@@ -1,0 +1,22 @@
+# Random Forest settings (python models/rf.py main). Edit this file to change the tuning.
+#
+# Tuning: every combination of the values under `grid` is trained on 4 of the 5 folds of the train + validation cells and scored on the 5th (the tuning fold)
+# (RMSE, Mg/ha). The lowest tuning-fold RMSE wins and is saved to data/tuning/rf_best.json. Test cells are never used.
+#   - number of fits = product of the list lengths (printed before training starts)
+#   - to fix a setting, give its list ONE value, e.g.  max_features: [0.5]
+#   - `fixed` settings are not tuned; to tune one, move it into `grid` as a list
+
+seed: 42                  # seed of the tuning model and of the tuning cut (the performance cut uses seed + 1)
+seeds: [0, 1, 2, 3, 4]    # the ensemble: member k has seed k and is fitted once, without fold k. Prediction = mean, uncertainty = spread.
+cv_folds: 5               # phase 2: random folds of the train + validation cells (data/cv/cv_folds.csv, written once). Must equal the number of seeds.
+                          # Keep the same seeds and cv_folds in both yaml files so both models are built alike.
+tuning_fold: 0           # phase 1 (tuning, data/cv/tuning_folds.csv, a different random cut): fit on the other 4 folds, score on this one, once.
+
+grid:
+  n_estimators: [300, 600]               # trees per forest; little to gain beyond a few hundred
+  min_samples_leaf: [1, 3, 5, 10, 20]    # bigger leaves smooth over the noisy GEDI labels (the most useful setting here)
+  max_features: [0.33, 0.5, 1.0]         # share of the 21 channels tried at each split
+
+fixed:
+  criterion: squared_error               # the loss (same as XGBoost)
+  n_jobs: -1                             # use all CPU cores

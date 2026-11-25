@@ -1,0 +1,27 @@
+# XGBoost settings (python models/xgb.py main). Edit this file to change the tuning.
+#
+# Tuning: every combination of the values under `grid` is trained on 4 of the 5 folds of the train + validation cells and scored on the 5th (the tuning fold)
+# (RMSE, Mg/ha). The lowest tuning-fold RMSE wins and is saved to data/tuning/xgb_best.json. Test cells are never used.
+#   - number of fits = product of the list lengths (printed before training starts)
+#   - to fix a setting, give its list ONE value, e.g.  max_depth: [5]
+#   - `fixed` settings are not tuned; to tune one, move it into `grid` as a list
+
+seed: 42                  # seed of the tuning model and of the tuning cut (the performance cut uses seed + 1)
+seeds: [0, 1, 2, 3, 4]    # the ensemble: member k has seed k and is fitted once, without fold k. Prediction = mean, uncertainty = spread.
+cv_folds: 5               # phase 2: random folds of the train + validation cells (data/cv/cv_folds.csv, written once). Must equal the number of seeds.
+                          # Keep the same seeds and cv_folds in both yaml files so both models are built alike.
+tuning_fold: 0           # phase 1 (tuning, data/cv/tuning_folds.csv, a different random cut): fit on the other 4 folds, score on this one, once.
+
+grid:
+  max_depth: [3, 5, 7]                   # tree depth; shallower = more cautious
+  learning_rate: [0.03, 0.1]
+  min_child_weight: [1, 5, 20]           # bigger = needs more cells per leaf, smooths noisy labels
+
+fixed:
+  objective: reg:squarederror            # the loss (same as RF)
+  eval_metric: rmse                      # keep: tuning and early stopping are judged on RMSE
+  n_estimators: 3000                     # upper limit; training stops early when the tuning-fold RMSE stops improving
+  early_stopping_rounds: 50              # keep: the tuning code reads the best score from it
+  subsample: 0.8                         # random 80% of cells per tree; this is what makes the seeds differ
+  colsample_bytree: 0.8
+  n_jobs: -1
