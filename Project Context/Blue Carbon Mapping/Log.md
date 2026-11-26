@@ -174,3 +174,13 @@ Chronological record of what was done and how. Current state and reasons are in 
 
 ### Update 3 (same day): two cuts, two phases
 - Phase 1 (tuning, once, no ensemble): pool (train + validation, 85%) cut into 5 folds (`data/cv/tuning_folds.csv`, seed 42); fit on 4 folds, score on fold 0. Phase 2 (performance): the pool is shuffled again and cut into 5 NEW folds (`data/cv/cv_folds.csv`, seed 43); member k fitted once on 4 folds, scored on fold k; cross-validation score averaged over all pooled cells (no skipping of the tuning cells, user decision; slightly optimistic, stated). Test cells untouched. Checks pass; nothing trained on real data yet.
+
+## 2026-11-26 - First real run: Random Forest and XGBoost
+- Run order: fold files written first (`data/cv/tuning_folds.csv` seed 42, `cv_folds.csv` seed 43), then `rf.py main` and `xgb.py main` in parallel, then both `spatial` runs; scored with `evaluate.py`, `seed_variance.py`, `spatial.py evaluate`. A sandbox smoke test with tiny grids ran first and found no bugs (only a stale "validation RMSE" label, fixed).
+- Tuning (fold 0 of the tuning cut): RF best 300 trees, min leaf 10, max_features 0.5 (95.61); XGBoost best depth 5, lr 0.03, min child weight 5 (95.96). All combinations within 0.6 (XGBoost) / 2.2 (RF) Mg/ha.
+- Test cells (1,896): RF RMSE 94.5 [83.9, 106.1], R2 0.493, bias +1.5, slope 1.05; XGBoost 94.2 [83.3, 106.1], R2 0.496, bias +0.7, slope 1.03; null 132.6. Noise floor about 81 Mg/ha (R2 ceiling about 0.62). Paired XGBoost - RF RMSE -0.3 [-1.0, +0.4]; seed sd 0.1-0.2: no winner. Cross-validation RMSE 95.3 for both (consistent with test).
+- Dense stands underestimated (400+ bin bias -165 vs -308 for the null model). Uncertainty: Spearman rho +0.27 (RF), +0.21 (XGBoost).
+- Spatial hold-out (5 folds, 10 km blocks, 5 km buffer): RF and XGBoost RMSE 98.6, R2 0.438, null 132.2; same test cells random vs spatial model: +3% RMSE (upper bound on the random-split optimism). Both models beat the null in every fold (fold RMSE 87-119).
+- Nothing committed to git this session (user instruction).
+
+- 2026-11-26: compared the baseline evaluations with Dong et al. (2023, arXiv 2311.03067; forest-wide, scores not comparable) and noted ideas for better and more trustworthy predictions in [[Improvements]]. Nothing decided or built.

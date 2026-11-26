@@ -20,7 +20,7 @@ The members are also written one by one (<model>_s<seed>.csv) for evaluation/see
 
 What a model file (rf.py / xgb.py) provides is a Spec: its name, its yaml, and three small functions:
     build(params, seed, y_train)            an unfitted model
-    score(model, Xtr, ytr, Xva, yva)        fit it for tuning; return (validation RMSE, number of trees)
+    score(model, Xtr, ytr, Xva, yva)        fit it for tuning (Xva = the tuning fold); return (tuning-fold RMSE, number of trees)
     final(params, best)                     the settings of the final members, from the saved tuning winner
 """
 import argparse
@@ -160,7 +160,7 @@ def tune(spec, cfg, Xn, y, tr, va):
         model = spec.build({**cfg.get("fixed", {}), **combo}, cfg["seed"], y[tr])
         rmse, n_trees = spec.score(model, Xn[tr], y[tr], Xn[va], y[va])
         rows.append({**combo, "n_trees": n_trees, "tuning_rmse": rmse})
-        print(f"  [{i}/{len(combos)}] {combo} -> validation RMSE {rmse:.2f} Mg/ha")
+        print(f"  [{i}/{len(combos)}] {combo} -> tuning-fold RMSE {rmse:.2f} Mg/ha")
     top = rows[int(np.argmin([r["tuning_rmse"] for r in rows]))]          # the original dict: ints stay ints (a pandas row gives floats)
     best = {"model": spec.name, "params": {k: top[k] for k in keys}, "n_trees": int(top["n_trees"]), "tuning_rmse": float(top["tuning_rmse"]),
             "seed": cfg["seed"], "grid": cfg["grid"], "fixed": cfg.get("fixed", {}), "versions": versions()}

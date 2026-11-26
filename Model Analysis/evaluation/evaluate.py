@@ -3,15 +3,15 @@
 Run (from the Model Analysis folder):
     python evaluation/evaluate.py --models null rf xgb --pairs rf:null xgb:rf
 Reads data/predictions/<model>.csv (see predictions.py). Writes data/results/:
-    results_metrics.csv      per model and set: each metric with a block-bootstrap 95% interval
+    results_metrics.csv      per model, test cells: each metric with a block-bootstrap 95% interval
     results_by_range.csv     errors by observed biomass range (test cells)
     results_uncertainty.csv  error against the model's own uncertainty (models that give pred_std; test cells)
     results_noise_floor.csv  label-noise floor: best achievable RMSE / R2 from repeat GEDI shots (noise_floor.py)
     results_aggregated.csv   test cells averaged in 50 m / 100 m squares holding 2+ test cells (small sample, see aggregate.py)
     results_paired.csv       paired differences between the model pairs given in --pairs (test cells)
     settings.json            every setting, the bins, the split hash and the random-split caveat numbers
-Headline = test cells. Train and validation cells are shown too but are NOT independent (they are the pool the models were fitted and tuned on).
-The cells of each set, and the bootstrap blocks, come from the split file, never from one of the models, so every
+Only the test cells are scored (the train and validation cells are the pool the models are fitted on; their honest scores are
+the out-of-fold files <model>_oof.csv). The test cells, and the bootstrap blocks, come from the split file, never from one of the models, so every
 model is scored on exactly the same cells. Outputs are derived and may be overwritten.
 
 What the intervals mean: the bootstrap resamples test BLOCKS with the predictions held fixed. It captures sampling
@@ -49,52 +49,40 @@ def leakage(cells, split, eval_set="test"):
             "within_1km_pct": float(100 * (d < 1000).mean()), "median_distance_m": float(np.median(d))}
 
 
-def evaluate(models, reference, block_m=4000, n_boot=2000, seed=42, pairs=(), sets=("test", "val")):
+def evaluate(models, reference, block_m=4000, n_boot=2000, seed=42, pairs=()):
     """models: {name: DataFrame from predictions.with_labels}.
     reference: the label cells joined to the split (cell_row, cell_col, set, x_utm, y_utm): it defines which cells
-    are in each set and how they are grouped into blocks, the same for every model.
-    Returns a dict of DataFrames and the number of blocks per set."""
+    are test cells and how they are grouped into blocks, the same for every model.
+    Returns a dict of DataFrames and {"test": number of blocks}."""
     names = list(models)
     for pair in pairs:
         for n in pair.split(":"):
             if n not in models:
                 raise SystemExit(f"--pairs {pair}: '{n}' is not one of the models {names}")
     ref = reference.sort_values(P.KEY, ignore_index=True)
-    reps, n_blocks, keys = {}, {}, {}
-    for s in sets:
-        sub = ref[ref["set"] == s]
-        if sub.empty:
-            print(f"  set '{s}': no cells in the split, skipped")
-            continue
-        codes = B.block_codes(sub.x_utm, sub.y_utm, block_m)
-        reps[s], n_blocks[s], keys[s] = B.replicates(codes, n_boot, seed), int(codes.max()) + 1, sub[P.KEY].to_numpy()
-    if "test" not in keys:
+    sub = ref[ref["set"] == "test"]
+    if sub.empty:
         raise SystemExit("the split has no test cells")
-    used = list(keys)
-    for s in used:
-        if n_blocks[s] < MIN_BLOCKS:
-            print(f"  WARNING: only {n_blocks[s]} blocks of {block_m} m in the '{s}' cells: no confidence interval is given")
+    codes = B.block_codes(sub.x_utm, sub.y_utm, block_m)
+    reps, n_blocks, keys = B.replicates(codes, n_boot, seed), int(codes.max()) + 1, sub[P.KEY].to_numpy()
+    if n_blocks < MIN_BLOCKS:
+        print(f"  WARNING: only {n_blocks} blocks of {block_m} m in the test cells: no confidence interval is given")
 
-    def rows(name, s):
-        """The cells of model `name` in set s, or None unless it covers exactly the split's cells of that set."""
-        d = models[name][models[name]["set"] == s]
-        return d if len(d) == len(keys[s]) and (d[P.KEY].to_numpy() == keys[s]).all() else None
+    def rows(name):
+        """The test cells of model `name`, or None unless it covers exactly the split's test cells."""
+        d = models[name][models[name]["set"] == "test"]
+        return d if len(d) == len(keys) and (d[P.KEY].to_numpy() == keys).all() else None
 
     out = {"metrics": [], "by_range": [], "uncertainty": [], "paired": [], "aggregated": []}
     agg_reps = {}                                   # bootstrap replicates per square size (same squares for every model)
     for name in names:
-        if rows(name, "test") is None:
-            raise SystemExit(f"{name}: does not cover exactly the {len(keys['test'])} test cells of the split")
-        for s in used:
-            d = rows(name, s)
-            if d is None:
-                print(f"  {name}: set '{s}' does not cover every cell of the split, skipped")
-                continue
-            ci = B.confidence(d.obs, d.pred, reps[s])
-            if n_blocks[s] < MIN_BLOCKS:
-                ci[["ci_lo", "ci_hi"]] = np.nan
-            out["metrics"].append(ci.assign(model=name, set=s, used_for_selection=(s != "test"), n=len(d), n_blocks=n_blocks[s]))
-        d = rows(name, "test")
+        d = rows(name)
+        if d is None:
+            raise SystemExit(f"{name}: does not cover exactly the {len(keys)} test cells of the split")
+        ci = B.confidence(d.obs, d.pred, reps)
+        if n_blocks < MIN_BLOCKS:
+            ci[["ci_lo", "ci_hi"]] = np.nan
+        out["metrics"].append(ci.assign(model=name, set="test", n=len(d), n_blocks=n_blocks))
         out["by_range"].append(M.by_range(d.obs, d.pred).assign(model=name))
         for label, side in A.SIDES.items():            # test-cell version of aggregated accuracy (small sample)
             g = A.group_cells(d, side)
@@ -117,37 +105,29 @@ def evaluate(models, reference, block_m=4000, n_boot=2000, seed=42, pairs=(), se
                 out["uncertainty"].append(tab.assign(model=name, spearman_rho=rho, mae_rises_every_bin=mono))
     for pair in pairs:
         a, b = pair.split(":")
-        da, db = rows(a, "test"), rows(b, "test")
-        tab, share = B.paired(da.obs, da.pred, db.pred, reps["test"])
-        if n_blocks["test"] < MIN_BLOCKS:
+        da, db = rows(a), rows(b)
+        tab, share = B.paired(da.obs, da.pred, db.pred, reps)
+        if n_blocks < MIN_BLOCKS:
             tab[["ci_lo", "ci_hi"]] = np.nan
         out["paired"].append(tab.assign(model_a=a, model_b=b, share_a_rmse_lower=share))
     res = {k: (pd.concat(v, ignore_index=True) if v else pd.DataFrame()) for k, v in out.items()}
-    return res, n_blocks
+    return res, {"test": n_blocks}
 
 
-def summary(res, sets=("test", "val")):
-    """Printable tables (headline = test)."""
+def summary(res):
+    """Printable tables (test cells)."""
     lines = []
     m = res["metrics"]
-    for s in sets:
-        d = m[m["set"] == s]
-        if d.empty:
-            continue
-        if s == "test":
-            lines.append(f"\nTEST cells ({int(d.n.iloc[0])} cells in {int(d.n_blocks.iloc[0])} blocks; not used for selection, "
-                         f"but see the random-split caveat below)")
-        else:
-            lines.append(f"\nVAL cells ({int(d.n.iloc[0])} cells in {int(d.n_blocks.iloc[0])} blocks; NOT independent: "
-                         f"used to choose the early-stopping point)")
-        lines.append(f"{'model':10s} {'n':>5s} {'R2':>7s} {'R2 (r^2)':>9s} {'RMSE  [95% CI]':>26s} {'relRMSE%':>9s} {'bias':>8s} {'bias%':>7s} "
-                     f"{'slope':>6s} {'MAE':>7s}")
-        for name in d.model.unique():
-            r = d[d.model == name].set_index("metric")
-            lines.append(f"{name:10s} {int(r.n.iloc[0]):5d} {r.estimate['r2']:7.3f} {r.estimate['r2_pearson']:9.3f} "
-                         f"{r.estimate['rmse']:8.1f} [{r.ci_lo['rmse']:6.1f},{r.ci_hi['rmse']:6.1f}] "
-                         f"{r.estimate['rel_rmse_pct']:9.1f} {r.estimate['bias']:8.1f} {r.estimate['bias_pct']:7.1f} "
-                         f"{r.estimate['calib_slope']:6.2f} {r.estimate['mae']:7.1f}")
+    lines.append(f"\nTEST cells ({int(m.n.iloc[0])} cells in {int(m.n_blocks.iloc[0])} blocks; not used for selection, "
+                 f"but see the random-split caveat below)")
+    lines.append(f"{'model':10s} {'n':>5s} {'R2':>7s} {'R2 (r^2)':>9s} {'RMSE  [95% CI]':>26s} {'relRMSE%':>9s} {'bias':>8s} {'bias%':>7s} "
+                 f"{'slope':>6s} {'MAE':>7s}")
+    for name in m.model.unique():
+        r = m[m.model == name].set_index("metric")
+        lines.append(f"{name:10s} {int(r.n.iloc[0]):5d} {r.estimate['r2']:7.3f} {r.estimate['r2_pearson']:9.3f} "
+                     f"{r.estimate['rmse']:8.1f} [{r.ci_lo['rmse']:6.1f},{r.ci_hi['rmse']:6.1f}] "
+                     f"{r.estimate['rel_rmse_pct']:9.1f} {r.estimate['bias']:8.1f} {r.estimate['bias_pct']:7.1f} "
+                     f"{r.estimate['calib_slope']:6.2f} {r.estimate['mae']:7.1f}")
     br = res["by_range"]
     if not br.empty:
         lines.append("\nErrors by OBSERVED biomass range (Mg/ha), test cells: n / bias / RMSE")

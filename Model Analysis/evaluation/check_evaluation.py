@@ -132,23 +132,22 @@ reference = cells.merge(split, on=P.KEY)
 res, nb = E.evaluate(models, reference, block_m=4000, n_boot=200, seed=1, pairs=["good:null"])
 mt = res["metrics"].query("set == 'test'").set_index(["model", "metric"])
 assert mt.estimate["good", "rmse"] < mt.estimate["null", "rmse"] and abs(mt.estimate["null", "r2"]) < 0.1
-assert mt.n_blocks.iloc[0] == nb["test"] and res["metrics"].query("set == 'val'").shape[0] == 2 * len(M.METRIC_NAMES)
+assert mt.n_blocks.iloc[0] == nb["test"] and res["metrics"].set.unique().tolist() == ["test"]      # test cells only
+assert len(res["metrics"]) == 2 * len(M.METRIC_NAMES)
 assert res["by_range"].model.nunique() == 2 and res["uncertainty"].model.unique().tolist() == ["good"]
 assert res["paired"].share_a_rmse_lower.iloc[0] == 1.0
 txt = E.summary(res)
-assert "TEST cells" in txt and "NOT independent" in txt and "good vs null" in txt
+assert "TEST cells" in txt and "VAL cells" not in txt and "good vs null" in txt
 lk = E.leakage(cells, split)
 assert 0 <= lk["within_100m_pct"] <= lk["within_1km_pct"] <= 100
-assert "used_for_selection" in res["metrics"].columns and "independent" not in res["metrics"].columns
 
-# models that lack validation rows: no crash, no dependence on model order, the others still scored on all val cells
+# a model without validation rows scores the same (only test cells are used), whatever the model order
 no_val = models["good"][models["good"]["set"] != "val"]
 for order in (["partial", "good", "null"], ["good", "null", "partial"]):
     mm = {"partial": no_val, "good": models["good"], "null": models["null"]}
     res2, _ = E.evaluate({k: mm[k] for k in order}, reference, block_m=4000, n_boot=50, seed=1)
-    v = res2["metrics"].query("set == 'val'")
-    assert sorted(v.model.unique()) == ["good", "null"] and (v.n == 100).all()          # partial skipped, val complete
-    assert sorted(res2["metrics"].query("set == 'test'").model.unique()) == ["good", "null", "partial"]
+    v = res2["metrics"].query("metric == 'rmse'").set_index("model").estimate
+    assert sorted(v.index) == ["good", "null", "partial"] and v["partial"] == v["good"]
 # a model that does not cover the test cells, and an unknown model in --pairs: clear stop
 raises(lambda: E.evaluate({"x": models["good"][models["good"]["set"] != "test"]}, reference, n_boot=10), "test cells", SystemExit)
 raises(lambda: E.evaluate(models, reference, n_boot=10, pairs=["good:nope"]), "not one of the models", SystemExit)
@@ -189,7 +188,7 @@ rows = [(k * 3 + j, 0, "test", 5000.0 * k + 10 * j, 5000.0 * k + 10 * j) for k i
 ref2 = pd.DataFrame(rows, columns=["cell_row", "cell_col", "set", "x_utm", "y_utm"])
 ob = rng.uniform(100, 400, len(ref2))
 mod = {"a": ref2.assign(obs=ob, pred=ob + rng.normal(0, 20, len(ref2))), "b": ref2.assign(obs=ob, pred=np.full(len(ref2), 250.0))}
-res5, _ = E.evaluate(mod, ref2, n_boot=50, seed=1, sets=("test",))
+res5, _ = E.evaluate(mod, ref2, n_boot=50, seed=1)
 ag5 = res5["aggregated"]
 assert not ag5.empty and set(ag5.square) == set(A.SIDES)
 for sq, d in ag5.groupby("square"):
