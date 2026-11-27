@@ -2,6 +2,7 @@
 
     python models/check_models.py
 """
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -112,6 +113,22 @@ def main():
     pred, sd = T.combine(members)
     assert np.allclose(pred, members.mean(0)) and np.allclose(sd, members.std(0))
     assert raises(T.ensemble, StubSpec(), {}, [0, 1, 2], X[tr], y[tr], X, fold), "5 folds but 3 members must be refused"
+
+    # run times: one record per member, predictions unchanged by timing, written to the timing folder
+    times = []
+    again = T.ensemble(StubSpec(), {}, [0, 1, 2, 3, 4], X[tr], y[tr], X, fold, times)[0]
+    assert (again == members).all() and [t["member"] for t in times] == [0, 1, 2, 3, 4]
+    assert all(t["fit_s"] >= 0 and t["predict_s"] >= 0 and t["predict_cells"] == len(df) for t in times)
+    assert [t["fit_cells"] for t in times] == [int((fold != k).sum()) for k in range(5)]
+    assert T.totals(times)["fit_s"] == sum(t["fit_s"] for t in times)
+    with tempfile.TemporaryDirectory() as d:
+        old, T.TIMING = T.TIMING, Path(d)
+        try:
+            T.save_timing("m", "main", {"n_jobs": 2}, {"members": times})
+            saved = json.loads((Path(d) / "timing_m_main.json").read_text())
+        finally:
+            T.TIMING = old
+        assert saved["machine"]["n_jobs"] == 2 and len(saved["members"]) == 5 and saved["mode"] == "main"
 
     # yaml: cv_folds must equal the number of seeds
     assert T.cv_size({"cv_folds": 5, "seeds": [0, 1, 2, 3, 4]}) == 5

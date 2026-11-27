@@ -18,6 +18,11 @@ averaged over all pooled cells, including the ones that chose the settings in ph
 is slightly optimistic; only the test cells are fully clean.
 The members are also written one by one (<model>_s<seed>.csv) for evaluation/seed_variance.py.
 
+Run times (wall clock, seconds) go to data/results/timing_<model>_<mode>.json. tuning = the whole grid search (main mode only);
+fit = building and fitting a member; predict = that member predicting the cells reported. Library import, out-of-fold
+predictions and file writing are not counted. Each run replaces the file of its mode, and its totals cover that run only
+(see folds_run in spatial mode). Times depend on the machine and its load: run one model at a time when they are compared.
+
 What a model file (rf.py / xgb.py) provides is a Spec: its name, its yaml, and three small functions:
     build(params, seed, y_train)            an unfitted model
     score(model, Xtr, ytr, Xva, yva)        fit it for tuning (Xva = the tuning fold); return (tuning-fold RMSE, number of trees)
@@ -26,8 +31,12 @@ What a model file (rf.py / xgb.py) provides is a Spec: its name, its yaml, and t
 import argparse
 import itertools
 import json
+import os
+import platform
 import sys
+import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
@@ -46,6 +55,7 @@ from normalise import normalise                                  # noqa: E402  (
 TABLE = DATA_PREP / "data" / "processed" / "features" / "cell_features.csv"
 STATS = DATA_PREP / "data" / "processed" / "features" / "norm_stats.json"
 TUNING = ROOT / "data" / "tuning"
+TIMING = ROOT / "data" / "results"
 CV_FILE = ROOT / "data" / "cv" / "cv_folds.csv"                 # phase 2: the folds of the ensemble members
 TUNING_CUT = ROOT / "data" / "cv" / "tuning_folds.csv"         # phase 1: the folds used for tuning only
 TARGET = "agb_main"
@@ -116,20 +126,26 @@ def cv_folds(df, k, seed=42, path=CV_FILE):
     return df[P.KEY].merge(f, on=P.KEY, how="left")["cv_fold"].fillna(-1).astype(int).to_numpy()
 
 
-def ensemble(spec, params, seeds, Xtr, ytr, Xpred, fold):
+def ensemble(spec, params, seeds, Xtr, ytr, Xpred, fold, times=None):
     """Member k (seed seeds[k]) is fitted once on the rows NOT in fold k. fold: fold id of each row of Xtr (0..len(seeds)-1).
     Returns (members, oof): members = (members x cells) predictions for Xpred; oof = each row of Xtr predicted by the
-    one member that did not see it."""
+    one member that did not see it. times: optional list; one dict of run times per member is appended to it."""
     fold = np.asarray(fold)
     assert len(fold) == len(ytr) and sorted(set(fold.tolist())) == list(range(len(seeds))), \
         "the folds must be 0..len(seeds)-1, one per member"
     out, oof = [], np.full(len(ytr), np.nan)
     for k, s in enumerate(seeds):
         keep = fold != k
+        t0 = time.perf_counter()
         m = spec.build(params, s, ytr[keep])
         m.fit(Xtr[keep], ytr[keep])
+        t1 = time.perf_counter()
         out.append(m.predict(Xpred))
+        t2 = time.perf_counter()
         oof[~keep] = m.predict(Xtr[~keep])
+        if times is not None:
+            times.append({"member": k, "seed": int(s), "fit_cells": int(keep.sum()), "fit_s": t1 - t0,
+                          "predict_cells": len(Xpred), "predict_s": t2 - t1})
     return np.vstack(out), oof
 
 
@@ -146,6 +162,23 @@ def versions():
         except Exception:
             out[mod] = "not installed"
     return out
+
+
+# ------------------------------------------------------------------ run times
+def totals(times):
+    """Summed fit and predict seconds of the members (prediction of the ensemble = all members predicting)."""
+    return {"fit_s": sum(t["fit_s"] for t in times), "predict_s": sum(t["predict_s"] for t in times)}
+
+
+def save_timing(name, mode, params, record):
+    """Write data/results/timing_<name>_<mode>.json: the record plus the machine it was measured on."""
+    TIMING.mkdir(parents=True, exist_ok=True)
+    machine = {"platform": platform.platform(), "processor": platform.processor(), "cpu_count": os.cpu_count(),
+               "n_jobs": params.get("n_jobs")}
+    path = TIMING / f"timing_{name}_{mode}.json"
+    path.write_text(json.dumps({"model": name, "mode": mode, "written": datetime.now().isoformat(timespec="seconds"),
+                                "unit": "seconds, wall clock", "machine": machine, "versions": versions(), **record}, indent=1))
+    print(f"{name}: wrote {path}")
 
 
 # ------------------------------------------------------------------ tuning
@@ -197,15 +230,21 @@ def run_main(spec, cfg, df, X):
     tf = int(cfg.get("tuning_fold", 0))
     assert 0 <= tf < k, f"tuning_fold ({tf}) must be one of the folds 0..{k - 1}"
     tr, va = pool & (tuning_cut != tf), tuning_cut == tf             # phase 1: fit on 4 folds, score on the tuning fold
+    spec.build(cfg.get("fixed", {}), cfg["seed"], y[tr])               # untimed: loads the model library before the timers
+    t0 = time.perf_counter()
     log, best = tune(spec, cfg, Xn, y, tr, va)
+    tuning_s = time.perf_counter() - t0
     best["tuning_fold"] = tf
     TUNING.mkdir(parents=True, exist_ok=True)
     log.to_csv(TUNING / f"{spec.name}_tuning.csv", index=False)
     (TUNING / f"{spec.name}_best.json").write_text(json.dumps(best, indent=1))
     print(f"{spec.name}: best {best['params']} (tuning-fold RMSE {best['tuning_rmse']:.2f}); fitting {k} members once each, on {k - 1} of the {k} folds of the {int(pool.sum())} train + validation cells")
 
-    members, oof = ensemble(spec, final_params(spec, best), seeds, Xn[pool], y[pool], Xn, folds[pool])
+    times, params = [], final_params(spec, best)
+    members, oof = ensemble(spec, params, seeds, Xn[pool], y[pool], Xn, folds[pool], times)
     pred, sd = combine(members)
+    tot = totals(times)
+    print(f"{spec.name}: tuning {tuning_s:.1f} s; {k} members: fit {tot['fit_s']:.1f} s, predict {len(Xn)} cells {tot['predict_s']:.2f} s")
     base = df[P.KEY + ["set"]]
     P.write(base.assign(pred=pred, pred_std=sd), spec.name,
             {"seeds": seeds, "params": best["params"], "n_trees": best["n_trees"], "tuning_fold_rmse": best["tuning_rmse"], "tuning_fold": tf,
@@ -215,6 +254,7 @@ def run_main(spec, cfg, df, X):
             "cell predicted by the one member that did not see it; test cells not included"}, require_test=False)
     for s, member in zip(seeds, members):                                # the members, for evaluation/seed_variance.py
         P.write(base.assign(pred=member), f"{spec.name}_s{s}", {"seed": s, "base_model": spec.name, "params": best["params"]})
+    save_timing(spec.name, "main", params, {"tuning_s": tuning_s, "n_combinations": len(log), **tot, "members": times})
     fp, rm = folds[pool], lambda m: float(np.sqrt(np.mean((oof[m] - y[pool][m]) ** 2)))
     print(f"{spec.name}: wrote data/predictions/{spec.name}.csv, {spec.name}_oof.csv and {len(seeds)} member files. "
           f"Cross-validation RMSE {rm(np.ones(len(fp), bool)):.1f} Mg/ha (per member {[round(rm(fp == j), 1) for j in range(k)]}; slightly "
@@ -227,12 +267,15 @@ def run_spatial(spec, cfg, df, folds_to_run):
     seeds, k = [int(s) for s in cfg["seeds"]], cv_size(cfg)
     d = df[P.KEY + [TARGET] + CHANNELS].merge(folds, on=P.KEY, how="left", validate="1:1")
     assert d["fold"].notna().all(), "some cells are not in the spatial folds file"
-    y, parts = d[TARGET].to_numpy(float), []
+    y, parts, per_fold, params = d[TARGET].to_numpy(float), [], [], final_params(spec, best)
+    spec.build(params, seeds[0], y)                                    # untimed: loads the model library before the timers
     for f in folds_to_run:
         tr, te = (d[f"role_{f}"] == "train").to_numpy(), (d["fold"] == f).to_numpy()
         Xn = fold_inputs(d, tr, f).to_numpy()
         sub = cut_folds(int(tr.sum()), k, cfg["seed"] + f)               # this fold's train-role cells only, cut like the main run
-        pred, sd = combine(ensemble(spec, final_params(spec, best), seeds, Xn[tr], y[tr], Xn[te], sub)[0])
+        times = []
+        pred, sd = combine(ensemble(spec, params, seeds, Xn[tr], y[tr], Xn[te], sub, times)[0])
+        per_fold.append({"fold": int(f), **totals(times), "members": times})
         parts.append(d.loc[te, P.KEY + ["fold"]].assign(pred=pred, pred_std=sd))
         print(f"{spec.name}: fold {f}: {len(seeds)} members, each on {k - 1}/{k} of {int(tr.sum())} cells, predicted {int(te.sum())}; "
               f"RMSE {np.sqrt(np.mean((pred - y[te]) ** 2)):.1f} Mg/ha")
@@ -240,6 +283,8 @@ def run_spatial(spec, cfg, df, folds_to_run):
             {"seeds": seeds, "params": best["params"], "folds": list(folds_to_run), "versions": versions(),
              "note": "settings from the main run, no re-tuning; members fitted on random sub-folds of the fold's train-role cells"})
     print(f"{spec.name}: wrote data/predictions_spatial/{spec.name}.csv")
+    save_timing(spec.name, "spatial", params, {"folds_run": [int(f) for f in folds_to_run],
+                                              **totals([t for p in per_fold for t in p["members"]]), "folds": per_fold})
 
 
 def cli(spec, doc):

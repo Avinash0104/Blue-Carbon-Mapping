@@ -184,3 +184,26 @@ Chronological record of what was done and how. Current state and reasons are in 
 - Nothing committed to git this session (user instruction).
 
 - 2026-11-26: compared the baseline evaluations with Dong et al. (2023, arXiv 2311.03067; forest-wide, scores not comparable) and noted ideas for better and more trustworthy predictions in [[Improvements]]. Nothing decided or built.
+
+## 2026-11-27 - Review session: results, processing explained, git ignore rules
+- **Results chart:** `Model Analysis/evaluation/plot_results.py` draws `baseline_results.png` from the saved results (run `python evaluation/plot_results.py` from `Model Analysis`). Reviewed once, then rewritten to fix the review findings; the rewrite has not had a second review. The five panels were explained: overall error, bias by biomass level, predicted vs observed (RF, XGBoost), member spread vs error.
+
+![[baseline_results.png]]
+
+- **Status:** RF and XGBoost baselines done (tied; weak on dense stands; uncertainty far too narrow). Next: U-Nets (open question: training hardware), then model comparison, uncertainty fix, map, carbon totals, independent checks, web app.
+- **`.gitignore`:** data folders stay ignored except the small files needed to rerun models and evaluation (GEDI shot, cell and split tables; feature table and normalisation statistics; tuning, performance and spatial folds; tuning and results files). Raw and derived rasters and prediction files stay ignored. Checked with `git status` (24 new files, about 4 MB); nothing added or committed. `.gitignore` still lists itself.
+- **Processing explained and written down** in [[Processing]]: each step from raw data to model inputs, in simple terms, with the responsible code.
+- **Key clarifications** (also at the top of [[Context]]): GEDI height is not a model input; biomass labels are estimated from height with the equation; RF and XGBoost inputs are area-weighted averages of the 3 x 3 pixels; PALSAR resizing (bicubic) adds no real detail.
+- **Context.md:** added "How the model works (read this first)" and corrected the outdated line that put labels on a single 10 m pixel.
+- **Open:** back up or commit the fold files before moving to another machine; some older `Context.md` sections still describe the data-preparation stage; the code relies on Sentinel-1 having only descending passes over Sabah (no orbit filter).
+- Up to this point no model, evaluation or data-processing code was changed and nothing was retrained.
+- **Run times (added later the same day):** `models/train.py` now writes `data/results/timing_<model>_<mode>.json` (tuning, per-member fit and prediction seconds, machine details). Checks and a tiny-grid run on a throwaway copy pass; code-reviewed and findings fixed. The existing baselines have **no timing files yet**: they appear when the models are rerun.
+- **Rerun to record times (2026-11-27):** `rf.py` and `xgb.py` (main, then spatial) run one at a time, then `evaluate.py` (null rf xgb; pairs rf:null, xgb:rf), `seed_variance.py` and `spatial.py evaluate`, as before. All folds, tuning logs, predictions and results match the 2026-11-26 outputs to within rounding (largest difference below 3e-13). 16-core CPU, `n_jobs` -1; one run each.
+
+| Time (s) | Random Forest | XGBoost |
+|---|---|---|
+| Tuning (RF 30 settings, XGBoost 18) | 108.4 | 5.8 |
+| Main: fit 5 members | 12.2 | 1.8 |
+| Main: predict 12,638 cells, 5 members | 0.97 | 0.05 |
+| Spatial: fit 25 members (5 folds) | 32.5 | 7.4 |
+| Spatial: predict, all folds | 2.47 | 0.09 |

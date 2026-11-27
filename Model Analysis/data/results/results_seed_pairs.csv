@@ -1,0 +1,2 @@
+model_a,model_b,rmse_diff_a_minus_b,pooled_seed_sd,diff_over_sd,diff_over_se,share_a_lower_rmse,order_never_changes
+rf,xgb,0.0022106350853903223,0.1813202567641768,0.0121918815075662,0.019277057263398286,0.6,False

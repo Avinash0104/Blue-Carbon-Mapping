@@ -1,0 +1,264 @@
+{
+ "model": "xgb",
+ "mode": "spatial",
+ "written": "2026-11-27T13:44:08",
+ "unit": "seconds, wall clock",
+ "machine": {
+  "platform": "Windows-11-10.0.26200-SP0",
+  "processor": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+  "cpu_count": 16,
+  "n_jobs": -1
+ },
+ "versions": {
+  "sklearn": "1.7.2",
+  "xgboost": "3.4.1",
+  "numpy": "2.5.1",
+  "pandas": "2.3.2"
+ },
+ "folds_run": [
+  0,
+  1,
+  2,
+  3,
+  4
+ ],
+ "fit_s": 7.346515900000668,
+ "predict_s": 0.08901479999894946,
+ "folds": [
+  {
+   "fold": 0,
+   "fit_s": 1.2105611999995745,
+   "predict_s": 0.016112299999804236,
+   "members": [
+    {
+     "member": 0,
+     "seed": 0,
+     "fit_cells": 5992,
+     "fit_s": 0.26276210000014544,
+     "predict_cells": 2528,
+     "predict_s": 0.002529800000047544
+    },
+    {
+     "member": 1,
+     "seed": 1,
+     "fit_cells": 5993,
+     "fit_s": 0.1708634999995411,
+     "predict_cells": 2528,
+     "predict_s": 0.0025697999999465537
+    },
+    {
+     "member": 2,
+     "seed": 2,
+     "fit_cells": 5993,
+     "fit_s": 0.17560820000016975,
+     "predict_cells": 2528,
+     "predict_s": 0.0021616999993057107
+    },
+    {
+     "member": 3,
+     "seed": 3,
+     "fit_cells": 5993,
+     "fit_s": 0.24661729999934323,
+     "predict_cells": 2528,
+     "predict_s": 0.004638900000827562
+    },
+    {
+     "member": 4,
+     "seed": 4,
+     "fit_cells": 5993,
+     "fit_s": 0.35471010000037495,
+     "predict_cells": 2528,
+     "predict_s": 0.004212099999676866
+    }
+   ]
+  },
+  {
+   "fold": 1,
+   "fit_s": 1.5954539000003933,
+   "predict_s": 0.01835789999950066,
+   "members": [
+    {
+     "member": 0,
+     "seed": 0,
+     "fit_cells": 5394,
+     "fit_s": 0.3191257999997106,
+     "predict_cells": 2528,
+     "predict_s": 0.0034817999994629645
+    },
+    {
+     "member": 1,
+     "seed": 1,
+     "fit_cells": 5394,
+     "fit_s": 0.2896903000000748,
+     "predict_cells": 2528,
+     "predict_s": 0.0035807000003842404
+    },
+    {
+     "member": 2,
+     "seed": 2,
+     "fit_cells": 5394,
+     "fit_s": 0.3085371999995914,
+     "predict_cells": 2528,
+     "predict_s": 0.00437450000026729
+    },
+    {
+     "member": 3,
+     "seed": 3,
+     "fit_cells": 5395,
+     "fit_s": 0.38408000000072207,
+     "predict_cells": 2528,
+     "predict_s": 0.0034190999995189486
+    },
+    {
+     "member": 4,
+     "seed": 4,
+     "fit_cells": 5395,
+     "fit_s": 0.2940206000002945,
+     "predict_cells": 2528,
+     "predict_s": 0.0035017999998672167
+    }
+   ]
+  },
+  {
+   "fold": 2,
+   "fit_s": 1.5113222000009046,
+   "predict_s": 0.018732900000031805,
+   "members": [
+    {
+     "member": 0,
+     "seed": 0,
+     "fit_cells": 4810,
+     "fit_s": 0.28427319999991596,
+     "predict_cells": 2528,
+     "predict_s": 0.003517000000101689
+    },
+    {
+     "member": 1,
+     "seed": 1,
+     "fit_cells": 4810,
+     "fit_s": 0.2873793000007936,
+     "predict_cells": 2528,
+     "predict_s": 0.00401389999933599
+    },
+    {
+     "member": 2,
+     "seed": 2,
+     "fit_cells": 4810,
+     "fit_s": 0.31467760000032285,
+     "predict_cells": 2528,
+     "predict_s": 0.004086500000084925
+    },
+    {
+     "member": 3,
+     "seed": 3,
+     "fit_cells": 4811,
+     "fit_s": 0.33720679999987624,
+     "predict_cells": 2528,
+     "predict_s": 0.0038468000002467306
+    },
+    {
+     "member": 4,
+     "seed": 4,
+     "fit_cells": 4811,
+     "fit_s": 0.2877852999999959,
+     "predict_cells": 2528,
+     "predict_s": 0.00326870000026247
+    }
+   ]
+  },
+  {
+   "fold": 3,
+   "fit_s": 1.5478654000016832,
+   "predict_s": 0.018408199998702912,
+   "members": [
+    {
+     "member": 0,
+     "seed": 0,
+     "fit_cells": 5475,
+     "fit_s": 0.30571730000065145,
+     "predict_cells": 2527,
+     "predict_s": 0.004128699999455421
+    },
+    {
+     "member": 1,
+     "seed": 1,
+     "fit_cells": 5475,
+     "fit_s": 0.30187540000042645,
+     "predict_cells": 2527,
+     "predict_s": 0.0034224999999423744
+    },
+    {
+     "member": 2,
+     "seed": 2,
+     "fit_cells": 5475,
+     "fit_s": 0.30931280000004335,
+     "predict_cells": 2527,
+     "predict_s": 0.0034408000001349137
+    },
+    {
+     "member": 3,
+     "seed": 3,
+     "fit_cells": 5475,
+     "fit_s": 0.3082196000004842,
+     "predict_cells": 2527,
+     "predict_s": 0.003499599999486236
+    },
+    {
+     "member": 4,
+     "seed": 4,
+     "fit_cells": 5476,
+     "fit_s": 0.3227403000000777,
+     "predict_cells": 2527,
+     "predict_s": 0.003916599999683967
+    }
+   ]
+  },
+  {
+   "fold": 4,
+   "fit_s": 1.4813131999981124,
+   "predict_s": 0.017403500000909844,
+   "members": [
+    {
+     "member": 0,
+     "seed": 0,
+     "fit_cells": 4596,
+     "fit_s": 0.3020954999992682,
+     "predict_cells": 2527,
+     "predict_s": 0.0034358000002612243
+    },
+    {
+     "member": 1,
+     "seed": 1,
+     "fit_cells": 4597,
+     "fit_s": 0.29140110000025743,
+     "predict_cells": 2527,
+     "predict_s": 0.0034926999996969244
+    },
+    {
+     "member": 2,
+     "seed": 2,
+     "fit_cells": 4597,
+     "fit_s": 0.2753447999994023,
+     "predict_cells": 2527,
+     "predict_s": 0.0036956000003556255
+    },
+    {
+     "member": 3,
+     "seed": 3,
+     "fit_cells": 4597,
+     "fit_s": 0.32312439999986964,
+     "predict_cells": 2527,
+     "predict_s": 0.0029968999997436185
+    },
+    {
+     "member": 4,
+     "seed": 4,
+     "fit_cells": 4597,
+     "fit_s": 0.2893473999993148,
+     "predict_cells": 2527,
+     "predict_s": 0.003782500000852451
+    }
+   ]
+  }
+ ]
+}

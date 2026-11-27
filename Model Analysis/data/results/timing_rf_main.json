@@ -1,0 +1,64 @@
+{
+ "model": "rf",
+ "mode": "main",
+ "written": "2026-11-27T13:43:06",
+ "unit": "seconds, wall clock",
+ "machine": {
+  "platform": "Windows-11-10.0.26200-SP0",
+  "processor": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+  "cpu_count": 16,
+  "n_jobs": -1
+ },
+ "versions": {
+  "sklearn": "1.7.2",
+  "xgboost": "3.4.1",
+  "numpy": "2.5.1",
+  "pandas": "2.3.2"
+ },
+ "tuning_s": 108.35727399999996,
+ "n_combinations": 30,
+ "fit_s": 12.157252299999527,
+ "predict_s": 0.9747587000010753,
+ "members": [
+  {
+   "member": 0,
+   "seed": 0,
+   "fit_cells": 8593,
+   "fit_s": 2.473160900000039,
+   "predict_cells": 12638,
+   "predict_s": 0.2470592999998189
+  },
+  {
+   "member": 1,
+   "seed": 1,
+   "fit_cells": 8593,
+   "fit_s": 2.6509015999999974,
+   "predict_cells": 12638,
+   "predict_s": 0.26815609999994194
+  },
+  {
+   "member": 2,
+   "seed": 2,
+   "fit_cells": 8594,
+   "fit_s": 2.332752899999832,
+   "predict_cells": 12638,
+   "predict_s": 0.1692073000003802
+  },
+  {
+   "member": 3,
+   "seed": 3,
+   "fit_cells": 8594,
+   "fit_s": 2.3974185999995825,
+   "predict_cells": 12638,
+   "predict_s": 0.1309162000006836
+  },
+  {
+   "member": 4,
+   "seed": 4,
+   "fit_cells": 8594,
+   "fit_s": 2.303018300000076,
+   "predict_cells": 12638,
+   "predict_s": 0.1594198000002507
+  }
+ ]
+}

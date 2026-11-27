@@ -7,6 +7,35 @@ tags: [context, blue-carbon, data-preparation]
 
 Current state of the data-preparation phase: what is done, how we got there, and what is running. The chronology is in [[Log]]. Ideas for better and more trustworthy predictions: [[Improvements]]. Spec: `Project.md`. Technical reference: `Data Preparation/Plan.md`.
 
+## How the model works (read this first)
+
+> [!important]
+> **Height is NOT a model input.** The models see only the 21 satellite channels. GEDI height is used once, to make the biomass labels.
+> **Biomass is NOT measured.** GEDI measures height (RH98); biomass is estimated from that height with an equation.
+
+```
+MAKING THE ANSWERS (labels)
+GEDI laser return -> RH98 height (m) -> equation -> biomass (Mg/ha), one value per 25 m cell
+
+TRAINING
+21 satellite channels -> model -> predicted biomass  <- compared with the biomass label
+
+MAPPING (later)
+21 satellite channels -> trained model -> biomass everywhere
+```
+
+- **What GEDI measures:** a laser on the International Space Station; footprint about 25 m. RH98 = the height below which 98% of the returned energy lies, in practice the canopy height.
+- **What the equation is for:** the models need examples with known biomass to learn from, and GEDI only gives height. `AGB = exp(3.9042 + 0.0858 * RH98)` (section 4).
+- **Why height is not an input:** GEDI covers only scattered tracks (12,638 usable cells), while the satellites cover all mangroves, so a satellite-only model can fill the gaps. The label is calculated from height, so a model given height would just relearn the equation.
+- **DEM nuance:** the DEM channel is a surface elevation (treetops included), so it carries a rough hint of canopy height. It is a separate satellite product, not GEDI's measurement.
+- **What "error" means:** scores compare predictions with biomass **estimated from GEDI height**, not with field-measured biomass.
+
+**Every processing step and its code:** [[Processing]].
+
+**How a label meets the pixels** (details in section 5): a label is never given to individual 10 m pixels. A 25 m cell overlaps a 3 x 3 block of pixels, each weighted by the share of the cell lying on it (weights sum to 1).
+- **RF and XGBoost:** each channel is the weighted average of the 9 pixels, giving one row of 21 inputs and one label per cell. The weights are fixed geometry; the model does not learn or see them.
+- **U-Nets (planned):** predict every pixel, then compare the weighted average of the predictions with the cell's label.
+
 ## Where things stand (2026-11-23)
 
 | Item | State |
@@ -59,7 +88,7 @@ The project is in Earth Engine "restricted mode" (noncommercial compute quota ex
 - **What:** 48 monthly float32 bands (`rh98_2019_04` ... `rh98_2023_03`), GEDI L2A rh98 in metres, 25 m pixels, nodata -1, from `LARSE/GEDI/GEDI02_A_002_MONTHLY`. Built by `code/collecting/gedi/export_gedi.py`.
 - **Filters (stricter than before):** `quality_flag` = 1, `degrade_flag` = 0, sensitivity 0.98-1, **power beams only (5, 6, 8, 11)**, **night shots** (`solar_elevation < 0`), rh98 0-50 m, pixel on mask value 1. Power beams and night follow NASA's guidance for the best height accuracy. Beam IDs 5, 6, 8 and 11 are the power beams by convention and are consistent with the data; they are not listed in the Earth Engine catalogue.
 - **Raster, not footprint points.** Footprints are about 25 m and geolocation error is of similar size, so snapping to the 25 m cell loses little; the raster fits the GeoTIFF-only rule and is already verified. Footprint points would only matter for the optional shift-resilient loss.
-- **No true 10 m labels exist:** a footprint is about 25 m wide. Labels will be rasterised (not resampled) onto the 10 m pixel at the footprint's cell centre, locally, later.
+- **No true 10 m labels exist:** a footprint is about 25 m wide. The label stays with its 25 m cell and is linked to the 10 m pixels by area weights (section 5). The centre pixel is used only to select cells on the mask and for reference.
 - **Full-state label counts (v2 export, 12 pieces + VRT, 48 bands, grid correct):** from `code/processing/gedi/count_labels.py`; each 25 m cell is placed on the 10 m pixel at its centre.
 
 | Step | Shots | Cells |

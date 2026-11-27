@@ -1,0 +1,51 @@
+{
+ "models": [
+  "null",
+  "rf",
+  "xgb"
+ ],
+ "pairs": [
+  "rf:null",
+  "xgb:rf"
+ ],
+ "block_m": 4000,
+ "n_boot": 2000,
+ "seed": 42,
+ "ci_level": 0.95,
+ "ci_method": "percentile, predictions held fixed (no training/seed variance)",
+ "min_blocks_for_ci": 20,
+ "bin_edges": [
+  0.0,
+  100.0,
+  200.0,
+  300.0,
+  400.0,
+  Infinity
+ ],
+ "n_blocks": {
+  "test": 284
+ },
+ "split_sha256": "f3bbd16fea37d9279761950209a78d81e5e84c26fd2fa10ac488497b0c79d549",
+ "random_split_caveat": {
+  "eval_set": "test",
+  "within_100m_pct": 71.62447257383965,
+  "within_1km_pct": 99.20886075949366,
+  "median_distance_m": 55.90169943749474
+ },
+ "noise_floor": {
+  "n_pairs": 162,
+  "sigma": 81.58503203108486,
+  "ci_lo": 62.19901312654422,
+  "ci_hi": 100.16161956096707,
+  "n_blocks": 42,
+  "sigma_rel_pct": 35.376428330989306,
+  "rmse_floor": 81.35881047296579,
+  "r2_ceiling": 0.6236715033886964,
+  "floor_ci_lo": 62.026545735006074,
+  "floor_ci_hi": 99.88388825319262,
+  "eval_set": "test",
+  "n_eval_cells": 1896,
+  "obs_sd": 132.6236687257373,
+  "obs_mean": 222.82037098710583
+ }
+}
